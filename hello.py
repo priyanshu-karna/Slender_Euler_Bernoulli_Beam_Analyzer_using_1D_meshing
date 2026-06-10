@@ -2,12 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class Beam:
-    def __init__(self, L, E, I, P, load_node, n_elem, bc_type):
+    def __init__(self, L, E, I, P, load_pos, n_elem, bc_type):
         self.L = L
         self.E = E
         self.I = I
         self.P = P                  
-        self.load_node = load_node  
+        self.load_pos = load_pos  
         self.n_elem = n_elem
         self.l_elem = L / n_elem
         self.ndof = 2 * (n_elem + 1)
@@ -36,9 +36,30 @@ class Beam:
             K[idx, idx] += k_elem
             
         
-        target_dof = 2 * self.load_node
-        f[target_dof] = -self.P
+        if np.isclose(self.load_pos % self.l_elem, 0) or np.isclose(self.load_pos % self.l_elem, self.l_elem):
+            node_idx = int(round(self.load_pos / self.l_elem))
+            f[2 * node_idx] = -self.P
+
+        else:
             
+            left_node = int(self.load_pos // self.l_elem)
+            a = float(self.load_pos % self.l_elem) 
+            b = self.l_elem - a
+            l = self.l_elem
+         
+            dof_indices = [2*left_node, 2*left_node+1, 2*left_node+2, 2*left_node+3]
+            
+            
+            f_equivalent = np.array([
+                -self.P * b**2 * (3*a + b) / l**3,      
+                -self.P * a * b**2 / l**2,              
+                -self.P * a**2 * (3*b + a) / l**3,      
+                self.P * a**2 * b / l**2                
+            ])
+            
+            for idx, dof in enumerate(dof_indices):
+                f[dof] += f_equivalent[idx]
+                
         return K, f
     
     def get_bc_dofs(self):
@@ -69,11 +90,12 @@ class Beam:
         return d
     def plotting(self, d):
         x = np.linspace(0, self.L, self.n_elem + 1)
-        deflection = d[0::2] 
+        deflection = d[0::2]  # Extracts only vertical displacement DOFs
 
         plt.figure(figsize=(8, 4))
-        plt.plot(x, deflection, '-ro', label='FEM Point Load Deflection')
-        plt.axvline(x=x[self.load_node], color='blue', linestyle='--', label='Point Load Location')
+        plt.plot(x, deflection, 'r._',markersize=4,linewidth=1, label='FEM Point Load Deflection')
+        
+        plt.axvline(x=self.load_pos, color='blue', linestyle='--', label='Point Load Location')
         plt.title(f'Beam Deflection Profile under Point Load ({self.bc_type.title()})')
         plt.xlabel('Beam Length (m)')
         plt.ylabel('Deflection (m)')
@@ -81,18 +103,17 @@ class Beam:
         plt.legend()
         plt.show()
 
-
-# --- Example Usage ---
+# --- Corrected Example Usage ---
 L = 10   
 E = 210e9
 I = 1e-6
-n_elem = 10
 
-P = 5000            # 5 kN point load
-load_node = 5       # Must be between 0 and n_elem 
-bc_type = "fixed_fixed"  # Change as described in the class for different boundary conditions
+n_elem = 50
 
-beam1 = Beam(L, E, I, P, load_node, n_elem, bc_type)
+P = 5000           
+load_pos = 5.59      
+
+beam1 = Beam(L, E, I, P, load_pos, n_elem, bc_type="fixed_fixed")
 d = beam1.solve()
 
 beam1.plotting(d)
