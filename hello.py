@@ -93,7 +93,7 @@ class Beam:
         deflection = d[0::2]  # Extracts only vertical displacement DOFs
 
         plt.figure(figsize=(8, 4))
-        plt.plot(x, deflection, 'r._',markersize=4,linewidth=1, label='FEM Point Load Deflection')
+        plt.plot(x, deflection, 'r.-',markersize=4,linewidth=1, label='FEM Point Load Deflection')
         
         plt.axvline(x=self.load_pos, color='blue', linestyle='--', label='Point Load Location')
         plt.title(f'Beam Deflection Profile under Point Load ({self.bc_type.title()})')
