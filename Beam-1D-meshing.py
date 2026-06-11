@@ -1,17 +1,18 @@
+from operator import pos
+
 import numpy as np 
 import matplotlib.pyplot as plt
 
 class Beam:
-    def __init__(self, L, E, I, P, load_pos, n_elem, bc_type):
+    def __init__(self, L, E, I,  n_elem, bc_type):
         self.L = L
         self.E = E
-        self.I = I
-        self.P = P                  
-        self.load_pos = load_pos  
+        self.I = I 
         self.n_elem = n_elem
         self.l_elem = L / n_elem
         self.ndof = 2 * (n_elem + 1)
         self.bc_type = bc_type
+        self.loads=[]
         
     def stiffness_matrix(self):
         l = self.l_elem
@@ -23,6 +24,10 @@ class Beam:
         ])
         return k
     
+    def add_load(self, P, pos):
+        self.loads.append((P, pos))
+
+
     def assemble(self):
         
         K = np.zeros((self.ndof, self.ndof))
@@ -35,15 +40,15 @@ class Beam:
             idx = slice(2*i, 2*i + 4)
             K[idx, idx] += k_elem
             
-        
-        if np.isclose(self.load_pos % self.l_elem, 0) or np.isclose(self.load_pos % self.l_elem, self.l_elem):
-            node_idx = int(round(self.load_pos / self.l_elem))
-            f[2 * node_idx] = -self.P
+        for P, pos in self.loads:
+         if np.isclose(pos % self.l_elem, 0) or np.isclose(pos % self.l_elem, self.l_elem):
+            node_idx = int(round(pos / self.l_elem))
+            f[2 * node_idx] += -P
 
-        else:
+         else:
             
-            left_node = int(self.load_pos // self.l_elem)
-            a = float(self.load_pos % self.l_elem) 
+            left_node = int(pos // self.l_elem)
+            a = float(pos % self.l_elem) 
             b = self.l_elem - a
             l = self.l_elem
          
@@ -51,10 +56,10 @@ class Beam:
             
             
             f_equivalent = np.array([
-                -self.P * b**2 * (3*a + b) / l**3,      
-                -self.P * a * b**2 / l**2,              
-                -self.P * a**2 * (3*b + a) / l**3,      
-                self.P * a**2 * b / l**2                
+                -P * b**2 * (3*a + b) / l**3,      
+                -P * a * b**2 / l**2,              
+                -P * a**2 * (3*b + a) / l**3,      
+                P * a**2 * b / l**2                
             ])
             
             for idx, dof in enumerate(dof_indices):
@@ -88,6 +93,7 @@ class Beam:
         d_free = np.linalg.solve(K_ff, f_ff)
         d[free] = d_free
         return d
+    
     def def_plotting(self, d):
         points = 20
         l = self.l_elem
@@ -106,7 +112,6 @@ class Beam:
                 
         plt.figure(figsize=(8, 4))
         plt.plot(x_smooth, defl, 'r-', linewidth=2, label='Interpolated deflection using cubic Hermite shape functions')
-        plt.axvline(self.load_pos, color='black', linestyle='--', alpha=0.5)
         plt.axhline(0, color='black', linewidth=1.8, linestyle='--')
         plt.ylabel('Deflection (m)')
         plt.xlabel('Length (m)')
@@ -158,17 +163,12 @@ class Beam:
             x0 = i * l
             x1 = (i + 1) * l
             
-            # Extract the 4 local DOFs for this element
+           
             v1, theta1, v2, theta2 = d[2*i : 2*i + 4]
-            local_d = np.array([v1, theta1, v2, theta2])
             
-            # 1. BENDING MOMENT CALCULATION (M = EI * d2v/dx2)
-            # Evaluated at left node (xi = 0) and right node (xi = 1) of the element
+           
             M_left = (EI / l**2) * (-6 * v1 - 4 * l * theta1 + 6 * v2 - 2 * l * theta2)
             M_right = (EI / l**2) * (6 * v1 + 2 * l * theta1 - 6 * v2 + 4 * l * theta2)
-            
-            # 2. SHEAR FORCE CALCULATION (V = EI * d3v/dx3)
-            # Constant across this element
             V_element = (EI / l**3) * (-12 * v1 - 6 * l * theta1 + 12 * v2 - 6 * l * theta2)
             
             # Append values for plotting
@@ -185,9 +185,9 @@ class Beam:
         # 1. Shear Force Diagram
         ax1.plot(x_coords, np.array(shear_forces) / 1000, 'b-', linewidth=2) # Convert to kN
         ax1.fill_between(x_coords, np.array(shear_forces) / 1000, color='blue', alpha=0.1)
+        for _,pos in self.loads:
+            ax1.axvline(pos, color='red', linestyle='--', alpha=0.7)
         ax1.axhline(0, color='black', linewidth=1)
-        ax1.axvline(self.load_pos, color='red', linestyle='--', alpha=0.7, label='Load Position')
-        ax1.set_title('Shear Force Diagram (SFD)')
         ax1.set_ylabel('Shear Force (kN)')
         ax1.grid(True)
         
@@ -195,7 +195,8 @@ class Beam:
         ax2.plot(x_coords, np.array(bending_moments) / 1000, 'g-', linewidth=2) # Convert to kN*m
         ax2.fill_between(x_coords, np.array(bending_moments) / 1000, color='green', alpha=0.1)
         ax2.axhline(0, color='black', linewidth=1)
-        ax2.axvline(self.load_pos, color='red', linestyle='--', alpha=0.7)
+        for _,pos in self.loads:
+            ax2.axvline(pos, color='red', linestyle='--', alpha=0.7)
         ax2.set_title('Bending Moment Diagram (BMD)')
         ax2.set_xlabel('Beam Length (m)')
         ax2.set_ylabel('Bending Moment (kN*m)')
@@ -205,16 +206,10 @@ class Beam:
         plt.show()
 
 # --- Corrected Example Usage ---
-L = 10   
-E = 210e9
-I = 1e-6
 
-n_elem = 250
-
-P = 5000           
-load_pos = 4.77    
-
-beam1 = Beam(L, E, I, P, load_pos, n_elem, bc_type="simply_supported")
+beam1 = Beam(L=10, E=210e9, I=1e-6, n_elem=250, bc_type="simply_supported")
+beam1.add_load(P=1000, pos=4.5)  
+beam1.add_load(P=1000, pos=7.2)
 d = beam1.solve()
 beam1.def_plotting(d)
 R = beam1.get_reactions(d)
