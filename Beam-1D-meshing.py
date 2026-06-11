@@ -88,17 +88,29 @@ class Beam:
         d_free = np.linalg.solve(K_ff, f_ff)
         d[free] = d_free
         return d
-    def plotting(self, d):
-        x = np.linspace(0, self.L, self.n_elem + 1)
-        deflection = d[0::2]  # Extracts only vertical displacement DOFs
-
-        plt.figure(figsize=(8, 4))
-        plt.plot(x, deflection, 'r.-',markersize=4,linewidth=1, label='FEM Point Load Deflection')
+    def def_plotting(self, d):
+        points = 20
+        l = self.l_elem
+        x_smooth, defl = [], []
         
-        plt.axvline(x=self.load_pos, color='blue', linestyle='--', label='Point Load Location')
-        plt.title(f'Beam Deflection Profile under Point Load ({self.bc_type.title()})')
-        plt.xlabel('Beam Length (m)')
+        for i in range(self.n_elem):
+            x0, x1 = i * l, (i + 1) * l
+            v1, t1, v2, t2 = d[2*i : 2*i + 4]
+            
+            x_local = np.linspace(x0, x1, points)
+            for xl in x_local:
+                xi = (xl - x0) / l
+                v = (1 - 3*xi**2 + 2*xi**3)*v1 + (xi - 2*xi**2 + xi**3)*l*t1 + (3*xi**2 - 2*xi**3)*v2 + (-xi**2 + xi**3)*l*t2
+                x_smooth.append(xl)
+                defl.append(v)
+                
+        plt.figure(figsize=(8, 4))
+        plt.plot(x_smooth, defl, 'r-', linewidth=2, label='Interpolated deflection using cubic Hermite shape functions')
+        plt.axvline(self.load_pos, color='black', linestyle='--', alpha=0.5)
+        plt.axhline(0, color='black', linewidth=1.8, linestyle='--')
         plt.ylabel('Deflection (m)')
+        plt.xlabel('Length (m)')
+        plt.title(f'Interpolated Deflection ({self.bc_type.title()})')
         plt.grid(True)
         plt.legend()
         plt.show()
@@ -197,13 +209,13 @@ L = 10
 E = 210e9
 I = 1e-6
 
-n_elem = 10
+n_elem = 250
 
 P = 5000           
-load_pos = 5     
+load_pos = 4.77    
 
 beam1 = Beam(L, E, I, P, load_pos, n_elem, bc_type="simply_supported")
 d = beam1.solve()
-beam1.plotting(d)
+beam1.def_plotting(d)
 R = beam1.get_reactions(d)
 beam1.plot_sfd_bmd(d)
