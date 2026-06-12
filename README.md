@@ -16,6 +16,8 @@ This solver can analyze beam structures with multiple point loads acting at arbi
 
 ✅ Point loads at any location along the beam
 
+✅ Distributed loads (Both UDL and UVL) converted to nodal load and moments using 3 point gauss quadrature
+
 ✅ Consistent equivalent nodal load vector formulation
 
 ✅ Multiple support conditions:
@@ -33,6 +35,8 @@ This solver can analyze beam structures with multiple point loads acting at arbi
 ✅ Bending Moment Diagram (BMD)
 
 ✅ Object-oriented Python implementation
+
+
 
 
 
@@ -74,19 +78,6 @@ Generated Results:
 
 ## Future Improvements
 
-Planned extensions include:
-
-* Distributed loads
-* Patch loads
-* Variable cross-section beams
-* Timoshenko beam elements
-* Multiple load cases
-* Modal analysis
-* Dynamic analysis
-* 2D Frame Elements
-* General FEM Framework
-
----
 
 ## Author
 
