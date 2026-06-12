@@ -55,6 +55,8 @@ beam = Beam(
 
 beam.add_load(P=1000, pos=2)
 beam.add_load(P=1000, pos=4)
+beam1.add_distributed_load(w1=0, w2=-1000, start_pos=0, end_pos=6)
+beam1.add_distributed_load(w1=-1000, w2=-1000, start_pos=4.6, end_pos=5.87)
 
 d = beam.solve()
 
