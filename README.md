@@ -2,7 +2,7 @@
 
 A Python implementation of the **Euler-Bernoulli Beam Finite Element Method (FEM)** using the **Direct Stiffness Method (DSM)**.
 
-This solver can analyze beam structures with multiple point loads acting at arbitrary locations and supports several common boundary conditions. It computes nodal displacements, rotations, support reactions, and generates smooth deflection, shear force, and bending moment diagrams.
+This solver can analyze beam structures with multiple point loads and distributed loads (Both UDL and UVL)acting at arbitrary locations and supports several common boundary conditions. It computes nodal displacements, rotations, support reactions, and generates smooth deflection, shear force, and bending moment diagrams.
 
 ---
 
@@ -78,7 +78,6 @@ Generated Results:
 * Bending Moment Diagram
 
 
-## Future Improvements
 
 
 ## Author
