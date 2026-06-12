@@ -1,10 +1,17 @@
-from operator import pos
-
 import numpy as np 
 import matplotlib.pyplot as plt
 
 class Beam:
     def __init__(self, L, E, I,  n_elem, bc_type):
+
+        if L <= 0:
+            raise ValueError("Beam length L must be positive.")
+        if n_elem < 1:
+            raise ValueError("n_elem must be at least 1.")
+        if E <= 0 or I <= 0:
+            raise ValueError("E and I must be positive.")
+
+
         self.L = L
         self.E = E
         self.I = I 
@@ -13,6 +20,8 @@ class Beam:
         self.ndof = 2 * (n_elem + 1)
         self.bc_type = bc_type
         self.loads=[]
+        self.point_loads = []
+        self.distributed_loads = []
         
     def stiffness_matrix(self):
         l = self.l_elem
@@ -25,7 +34,24 @@ class Beam:
         return k
     
     def add_load(self, P, pos):
+        if not (0.0 <= pos <= self.L):
+            raise ValueError(
+                f"Point load position {pos} is outside beam [0, {self.L}]."
+            )
+        self.point_loads.append({'mag': P, 'pos': pos})
         self.loads.append((P, pos))
+
+    def add_distributed_load(self, w1, w2, start_pos, end_pos):
+    
+        if start_pos < 0 or end_pos > self.L:
+            raise ValueError(
+                f"Distributed load span [{start_pos}, {end_pos}] is outside beam [0, {self.L}]."
+            )
+        if end_pos <= start_pos:
+            raise ValueError("end_pos must be strictly greater than start_pos.")
+        self.distributed_loads.append(
+            {'w1': w1, 'w2': w2, 'start': start_pos, 'end': end_pos}
+        )
 
 
     def assemble(self):
@@ -59,11 +85,51 @@ class Beam:
                 -P * b**2 * (3*a + b) / l**3,      
                 -P * a * b**2 / l**2,              
                 -P * a**2 * (3*b + a) / l**3,      
-                P * a**2 * b / l**2                
+                 P * a**2 * b / l**2                
             ])
             
             for idx, dof in enumerate(dof_indices):
                 f[dof] += f_equivalent[idx]
+        
+        gauss_weights = np.array([5 / 9, 8 / 9, 5 / 9])
+        gauss_pts     = np.array([-np.sqrt(3 / 5), 0.0, np.sqrt(3 / 5)])
+
+        for load in self.distributed_loads:
+            w1, w2  = load['w1'], load['w2']
+            w_start = load['start']
+            w_end   = load['end']
+            L_load  = w_end - w_start   # guaranteed > 0 by add_distributed_load
+
+            for i in range(self.n_elem):
+                x_left  = i * self.l_elem
+                x_right = x_left + self.l_elem
+
+                overlap_start = max(x_left,  w_start)
+                overlap_end   = min(x_right, w_end)
+                if overlap_start >= overlap_end:
+                    continue
+
+                a = overlap_start - x_left
+                b = overlap_end   - x_left
+
+                jac       = (b - a) / 2.0
+                xi_mapped = jac * gauss_pts + (b + a) / 2.0   # local coords in [0, l]
+                x_global  = xi_mapped + x_left
+
+                # Linearly varying intensity at each Gauss point
+                w_gp = w1 + (w2 - w1) * ((x_global - w_start) / L_load)
+
+                # Hermite shape functions (xi is local coordinate in [0, l])
+                xi = xi_mapped
+                N1 = 1 - 3 * (xi / self.l_elem)**2 + 2 * (xi / self.l_elem)**3
+                N2 = xi * (1 - 2 * (xi / self.l_elem) + (xi / self.l_elem)**2)
+                N3 = 3 * (xi / self.l_elem)**2 - 2 * (xi / self.l_elem)**3
+                N4 = xi * ((xi / self.l_elem)**2 - (xi / self.l_elem))
+
+                f[2 * i]     += np.dot(gauss_weights, w_gp * N1) * jac
+                f[2 * i + 1] += np.dot(gauss_weights, w_gp * N2) * jac
+                f[2 * i + 2] += np.dot(gauss_weights, w_gp * N3) * jac
+                f[2 * i + 3] += np.dot(gauss_weights, w_gp * N4) * jac
                 
         return K, f
     
@@ -189,6 +255,7 @@ class Beam:
             ax1.axvline(pos, color='red', linestyle='--', alpha=0.7)
         ax1.axhline(0, color='black', linewidth=1)
         ax1.set_ylabel('Shear Force (kN)')
+        ax1.invert_yaxis()  
         ax1.grid(True)
         
         # 2. Bending Moment Diagram
@@ -207,9 +274,11 @@ class Beam:
 
 # --- Corrected Example Usage ---
 
-beam1 = Beam(L=10, E=210e9, I=1e-6, n_elem=250, bc_type="simply_supported")
-beam1.add_load(P=1000, pos=4.5)  
-beam1.add_load(P=1000, pos=7.2)
+beam1 = Beam(L=6, E=210e9, I=1e-6, n_elem=250, bc_type="fixed_fixed")
+# beam1.add_load(P=1000, pos=2)  
+# beam1.add_load(P=1000, pos=4)
+# beam1.add_distributed_load(w1=-500, w2=-500, start_pos=0, end_pos=6)
+beam1.add_distributed_load(w1=-1000, w2=-1000, start_pos=0, end_pos=6)
 d = beam1.solve()
 beam1.def_plotting(d)
 R = beam1.get_reactions(d)
