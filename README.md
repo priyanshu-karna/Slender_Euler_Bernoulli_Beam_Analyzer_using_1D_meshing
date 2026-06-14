@@ -2,7 +2,7 @@
 
 A Python implementation of the **Euler-Bernoulli Beam Finite Element Method (FEM)** using the **Direct Stiffness Method (DSM)**.
 
-This solver can analyze beam structures with multiple point loads acting at arbitrary locations and supports several common boundary conditions. It computes nodal displacements, rotations, support reactions, and generates smooth deflection, shear force, and bending moment diagrams.
+This solver can analyze beam structures with multiple point loads and distributed loads (Both UDL and UVL)acting at arbitrary locations and supports several common boundary conditions. It computes nodal displacements, rotations, support reactions, and generates smooth deflection, shear force, and bending moment diagrams.
 
 ---
 
@@ -15,6 +15,8 @@ This solver can analyze beam structures with multiple point loads acting at arbi
 ✅ Arbitrary number of finite elements
 
 ✅ Point loads at any location along the beam
+
+✅ Distributed loads (Both UDL and UVL) converted to nodal load and moments using 3 point gauss quadrature
 
 ✅ Consistent equivalent nodal load vector formulation
 
@@ -36,6 +38,8 @@ This solver can analyze beam structures with multiple point loads acting at arbi
 
 
 
+
+
 ## Example
 
 ```python
@@ -51,6 +55,8 @@ beam = Beam(
 
 beam.add_load(P=1000, pos=2)
 beam.add_load(P=1000, pos=4)
+beam1.add_distributed_load(w1=0, w2=-1000, start_pos=0, end_pos=6)
+beam1.add_distributed_load(w1=-1000, w2=-1000, start_pos=4.6, end_pos=5.87)
 
 d = beam.solve()
 
@@ -72,21 +78,7 @@ Generated Results:
 * Bending Moment Diagram
 
 
-## Future Improvements
 
-Planned extensions include:
-
-* Distributed loads
-* Patch loads
-* Variable cross-section beams
-* Timoshenko beam elements
-* Multiple load cases
-* Modal analysis
-* Dynamic analysis
-* 2D Frame Elements
-* General FEM Framework
-
----
 
 ## Author
 
