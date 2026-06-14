@@ -160,7 +160,7 @@ class Beam:
         d[free] = d_free
         return d
     
-    def def_plotting(self, d):
+    def plot_deflection(self, d):
         points = 20
         l = self.l_elem
         x_smooth, defl = [], []
@@ -215,71 +215,99 @@ class Beam:
         return R
     
     def plot_sfd_bmd(self, d):
-        # Arrays to store plotting coordinates
-        x_coords = []
-        shear_forces = []
-        bending_moments = []
-        
-        # Calculate stiffness factor multiplier
-        EI = self.E * self.I
+        """
+        Plots SFD and BMD by directly differentiating the cubic Hermite 
+        displacement field across 20 sub-points per element.
+        """
+        sub_points = 20
         l = self.l_elem
+        EI = self.E * self.I
         
-        # Loop through each element to find local internal forces
+        x_all = []
+        V_all = []
+        M_all = []
+        
+        # Iterate through each element
         for i in range(self.n_elem):
-            x0 = i * l
-            x1 = (i + 1) * l
+            x0, x1 = i * l, (i + 1) * l
             
-           
-            v1, theta1, v2, theta2 = d[2*i : 2*i + 4]
+            # Extract the 4 nodal displacements/rotations for this element
+            v1, t1, v2, t2 = d[2*i : 2*i + 4]
             
-           
-            M_left = (EI / l**2) * (-6 * v1 - 4 * l * theta1 + 6 * v2 - 2 * l * theta2)
-            M_right = (EI / l**2) * (6 * v1 + 2 * l * theta1 - 6 * v2 + 4 * l * theta2)
-            V_element = (EI / l**3) * (-12 * v1 - 6 * l * theta1 + 12 * v2 - 6 * l * theta2)
+            # Discretize the element into sub-points
+            x_local = np.linspace(x0, x1, sub_points)
             
-            # Append values for plotting
-            # For Shear: We use two points per element to create clean vertical "jumps" at point loads
-            x_coords.extend([x0, x1])
-            shear_forces.extend([V_element, V_element])
-            
-            # For Moment: Linear variation between nodes
-            bending_moments.extend([M_left, M_right])
-            
-        # --- Plotting Subplots ---
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            for xl in x_local:
+                # Normalized coordinate xi inside the element [0, 1]
+                xi = (xl - x0) / l  
+                
+                # --- Bending Moment (M) ---
+                # M(x) = EI * d^2v/dx^2 = (EI / l^2) * d^2v/d_xi^2
+                # Differentiating your deflection formula twice w.r.t xi:
+                dd_v = (-6 + 12*xi)*v1 + (-4 + 6*xi)*l*t1 + (6 - 12*xi)*v2 + (-2 + 6*xi)*l*t2
+                M_val = (EI / l**2) * dd_v
+                
+                # --- Shear Force (V) ---
+                # V(x) = EI * d^3v/dx^3 = (EI / l^3) * d^3v/d_xi^3
+                # Differentiating your deflection formula three times w.r.t xi:
+                ddd_v = 12*v1 + 6*l*t1 - 12*v2 + 6*l*t2
+                V_val = (EI / l**3) * ddd_v
+                
+                x_all.append(xl)
+                M_all.append(M_val)
+                V_all.append(V_val)
+                
+        # Convert to numpy arrays for plotting
+        x_all = np.array(x_all)
+        V_all = np.array(V_all)
+        M_all = np.array(M_all)
         
-        # 1. Shear Force Diagram
-        ax1.plot(x_coords, np.array(shear_forces) / 1000, 'b-', linewidth=2) # Convert to kN
-        ax1.fill_between(x_coords, np.array(shear_forces) / 1000, color='blue', alpha=0.1)
-        for _,pos in self.loads:
-            ax1.axvline(pos, color='red', linestyle='--', alpha=0.7)
-        ax1.axhline(0, color='black', linewidth=1)
-        ax1.set_ylabel('Shear Force (kN)')
-        ax1.invert_yaxis()  
+        # --- Sign Convention Alignment ---
+        # Standard beam sign convention: static loads push down, creating negative shear 
+        # steps and smiling (positive) bending moments. We adjust signs to match standard output.
+        V_plot = -V_all
+        M_plot = -M_all
+        
+        # --- PLOTTING ---
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+        
+        # Shear Force Diagram (SFD)
+        ax1.plot(x_all, V_plot, 'r-', linewidth=2)
+        ax1.fill_between(x_all, V_plot, color='red', alpha=0.1)
+        ax1.axhline(0, color='black', linewidth=1.2, linestyle='--')
+        ax1.set_ylabel('Shear Force (N)')
+        ax1.set_title('Shear Force Diagram (SFD)')
         ax1.grid(True)
         
-        # 2. Bending Moment Diagram
-        ax2.plot(x_coords, np.array(bending_moments) / 1000, 'g-', linewidth=2) # Convert to kN*m
-        ax2.fill_between(x_coords, np.array(bending_moments) / 1000, color='green', alpha=0.1)
-        ax2.axhline(0, color='black', linewidth=1)
-        for _,pos in self.loads:
-            ax2.axvline(pos, color='red', linestyle='--', alpha=0.7)
-        ax2.set_title('Bending Moment Diagram (BMD)')
+        # Bending Moment Diagram (BMD)
+        ax2.plot(x_all, M_plot, 'b-', linewidth=2)
+        ax2.fill_between(x_all, M_plot, color='blue', alpha=0.1)
+        ax2.axhline(0, color='black', linewidth=1.2, linestyle='--')
         ax2.set_xlabel('Beam Length (m)')
-        ax2.set_ylabel('Bending Moment (kN*m)')
+        ax2.set_ylabel('Bending Moment (N·m)')
+        ax2.set_title('Bending Moment Diagram (BMD)')
         ax2.grid(True)
+        
+        ax2.invert_yaxis()
         
         plt.tight_layout()
         plt.show()
-
+        
+        
+        max_deflection = np.max(np.abs(d))
+        print(f"Maximum Deflection: {max_deflection:.6f} m")
+        max_shear = np.max(np.abs(V_all))
+        max_moment = np.max(np.abs(M_all))
+        print(f"Maximum Shear Force: {max_shear:.2f} N")
+        print(f"Maximum Bending Moment: {max_moment:.2f} N·m")
 # --- Corrected Example Usage ---
 
-beam1 = Beam(L=6, E=210e9, I=1e-6, n_elem=250, bc_type="fixed_fixed")
-# beam1.add_load(P=1000, pos=2)  
-# beam1.add_load(P=1000, pos=4)
-# beam1.add_distributed_load(w1=-500, w2=-500, start_pos=0, end_pos=6)
+beam1 = Beam(L=6, E=210e9, I=1e-6, n_elem=500, bc_type="fixed_fixed")
+beam1.add_load(P=1000, pos=2)  
+beam1.add_load(P=1000, pos=4)
+beam1.add_distributed_load(w1=00, w2=-500, start_pos=0, end_pos=4)
 beam1.add_distributed_load(w1=-1000, w2=-1000, start_pos=0, end_pos=6)
 d = beam1.solve()
-beam1.def_plotting(d)
-R = beam1.get_reactions(d)
 beam1.plot_sfd_bmd(d)
+beam1.plot_deflection(d)
+R = beam1.get_reactions(d)
